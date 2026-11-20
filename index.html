@@ -161,21 +161,22 @@ form.pw label{font-weight:800;color:#fff}
     <button id="snd" type="button" aria-label="Звук">🔊</button>
   </header>
   <main class="screen" id="app"></main>
+  <div style="text-align:center;font-size:11px;opacity:.45">версия 3</div>
 </div>
 
 <script>
 /* ---------- данные ---------- */
 const STEPS=[
-  {pw:['14'],n:1,world:'Футбол',w:'futbol',who:'Вика',video:'v1.mp4',c:'#2bd576'},
-  {pw:['28'],n:2,world:'Ниндзяго',w:'ninjago',who:'Дедушка',video:'v2.mp4',c:'#6fd3ff'},
-  {pw:['ЗЕЙН'],n:3,world:'Человек-паук',w:'spider',who:'Андрей',video:'v3.mp4',c:'#ff3b4e'},
-  {pw:['БЕН'],n:4,world:'Майнкрафт',w:'minecraft',who:'Бабушка',video:'v4.mp4',c:'#7bd64a'},
+  {pw:['14'],n:1,world:'Футбол',w:'futbol',who:'Вика',video:'kr1.mp4',c:'#2bd576'},
+  {pw:['28'],n:2,world:'Ниндзяго',w:'ninjago',who:'Дедушка',video:'kr2.mp4',c:'#6fd3ff'},
+  {pw:['ЗЕЙН'],n:3,world:'Человек-паук',w:'spider',who:'Андрей',video:'kr3.mp4',c:'#ff3b4e'},
+  {pw:['БЕН'],n:4,world:'Майнкрафт',w:'minecraft',who:'Бабушка',video:'kr4.mp4',c:'#7bd64a'},
   {pw:['14'],type:'glass',world:'Раздевалка',w:'razdevalka',c:'#b8e4ff',
    text:'Перед финалом чемпион заходит в раздевалку. Ищи там, куда прячешь руки, когда на улице холодно.'},
-  {pw:['ЧЕМПИОН'],n:5,world:'Чемпионат',w:'chempion',who:'Данил',video:'v5.mp4',c:'#ffc53d'},
+  {pw:['ЧЕМПИОН'],n:5,world:'Чемпионат',w:'chempion',who:'Данил',video:'kr5.mp4',c:'#ffc53d'},
   {pw:['ПАСПОРТ'],type:'final',world:'Финал',w:'final',c:'#ff7ad9'}
 ];
-const MUSIC={vhod:'music/vhod.mp3',futbol:'music/futbol.mp3',ninjago:'music/ninjago.mp3',spider:'music/spider.mp3',minecraft:'music/minecraft.mp3',chempion:'music/chempion.mp3',final:'music/chempion.mp3'};
+const MUSIC={vhod:'music/vhod.mp3?v=3',futbol:'music/futbol.mp3?v=3',ninjago:'music/ninjago.mp3?v=3',spider:'music/spider.mp3?v=3',minecraft:'music/minecraft.mp3?v=3',chempion:'music/chempion.mp3?v=3',final:'music/chempion.mp3?v=3'};
 const QUIZ=[{p:'2015',a:'2 года',o:['5 лет','2 года','8 лет','11 лет']},{p:'2018',a:'5 лет',o:['8 лет','2 года','11 лет','5 лет']},{p:'2022',a:'9 лет',o:['6 лет','12 лет','9 лет','3 года']}];
 const KEY='kvest-sashi-done',SKEY='kvest-sashi-sound';
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
@@ -195,16 +196,18 @@ function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext
 function unlock(){if(unlocked)return;unlocked=true;ac();playMusic(curW)}
 document.addEventListener('pointerdown',unlock,{once:false,capture:true});
 /* музыка через Web Audio: iPhone не обрывает её, когда играет кружок */
-const BUFS={};let mSrc=null,mGain=null,curTrack=null;
-function loadBuf(url){if(!BUFS[url])BUFS[url]=fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res,rej)=>ac().decodeAudioData(ab,res,rej)));return BUFS[url]}
-function stopMusic(){if(!mSrc)return;const s=mSrc,g=mGain,a=ac();try{g.gain.setTargetAtTime(0,a.currentTime,.15)}catch(e){}setTimeout(()=>{try{s.stop()}catch(e){}},700);mSrc=null;mGain=null;curTrack=null}
+const BUFS={},RAW={},READY={};let mSrc=null,mGain=null,curTrack=null,fb=null;
+function fetchRaw(url){if(!RAW[url])RAW[url]=fetch(url).then(r=>r.arrayBuffer());return RAW[url]}
+function loadBuf(url){if(!BUFS[url])BUFS[url]=fetchRaw(url).then(ab=>new Promise((res,rej)=>ac().decodeAudioData(ab.slice(0),res,rej))).then(b=>{READY[url]=true;return b});return BUFS[url]}
+function stopMusic(){if(fb){try{fb.pause()}catch(e){}fb=null;curTrack=null}if(!mSrc)return;const s=mSrc,g=mGain,a=ac();try{g.gain.setTargetAtTime(0,a.currentTime,.15)}catch(e){}setTimeout(()=>{try{s.stop()}catch(e){}},700);mSrc=null;mGain=null;curTrack=null}
 function playMusic(w){
   const url=MUSIC[w];
   if(!url){stopMusic();return}
   if(!soundOn||!unlocked)return;
   if(curTrack===url)return;
   stopMusic();curTrack=url;
-  loadBuf(url).then(b=>{if(curTrack!==url||mSrc)return;const a=ac();const s=a.createBufferSource();s.buffer=b;s.loop=true;const g=a.createGain();g.gain.value=0;s.connect(g);g.connect(a.destination);s.start();g.gain.setTargetAtTime(duck?0:BGV,a.currentTime,.4);mSrc=s;mGain=g}).catch(()=>{curTrack=null});
+  if(!READY[url]&&w==='vhod'){try{fb=new Audio(url);fb.loop=true;fb.play().catch(()=>{})}catch(e){}return}
+  loadBuf(url).then(b=>{if(curTrack!==url||mSrc||fb)return;const a=ac();const s=a.createBufferSource();s.buffer=b;s.loop=true;const g=a.createGain();g.gain.value=0;s.connect(g);g.connect(a.destination);s.start();g.gain.setTargetAtTime(duck?0:BGV,a.currentTime,.4);mSrc=s;mGain=g}).catch(()=>{curTrack=null});
   const i=STEPS.findIndex(x=>x.w===w);const nx=STEPS[i+1];if(nx&&MUSIC[nx.w])loadBuf(MUSIC[nx.w]).catch(()=>{});
 }
 setInterval(()=>{const v=document.getElementById('vid');const want=!!(v&&!v.paused&&!v.ended);if(want!==duck)setDuck(want)},250);
@@ -406,6 +409,10 @@ function loop(){if(running)return;running=true;const step=now=>{ctx.clearRect(0,
 function fireworks(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;until=performance.now()+9000;burst(innerWidth*.3,innerHeight*.3,90);burst(innerWidth*.7,innerHeight*.25,90)}
 
 render(false);
+/* заранее: трек входа раскодировать, остальные скачать в фоне */
+try{loadBuf(MUSIC.vhod).catch(()=>{})}catch(e){}
+(async()=>{for(const k of ['futbol','ninjago','spider','minecraft','chempion']){try{await fetchRaw(MUSIC[k])}catch(e){}}})();
+['kr1.mp4'].forEach(u=>{const l=document.createElement('link');l.rel='preload';l.as='video';l.href=u;document.head.appendChild(l)});
 function doReset(){ls.set(KEY,'0');done=0;history.replaceState(null,'',location.pathname);stopMusic();windStop();render(false)}
 addEventListener('hashchange',()=>{if(wantReset())doReset()});
 addEventListener('pageshow',e=>{if(e.persisted&&wantReset())doReset()});
