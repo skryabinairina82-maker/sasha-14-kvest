@@ -161,7 +161,7 @@ form.pw label{font-weight:800;color:#fff}
     <button id="snd" type="button" aria-label="Звук">🔊</button>
   </header>
   <main class="screen" id="app"></main>
-  <div style="text-align:center;font-size:11px;opacity:.45">версия 3</div>
+  <div style="text-align:center;font-size:11px;opacity:.45">версия 4</div>
 </div>
 
 <script>
@@ -193,9 +193,13 @@ const sndBtn=document.getElementById('snd');
 let BGV=0.5,duck=false;
 try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state!=='running'){try{AC.resume()}catch(e){}}return AC}
-function unlock(){if(unlocked)return;unlocked=true;ac();playMusic(curW)}
-document.addEventListener('pointerdown',unlock,{once:false,capture:true});
+function unlock(){const a=ac();if(unlocked)return;unlocked=true;
+  try{const b=a.createBuffer(1,1,22050),s=a.createBufferSource();s.buffer=b;s.connect(a.destination);s.start(0)}catch(e){}
+  playMusic(curW)}
+/* на iPhone звук разрешён только на «нажатие» (click/touchend), не на касание */
+['click','touchend'].forEach(ev=>document.addEventListener(ev,unlock,{capture:true,passive:true}));
 /* музыка через Web Audio: iPhone не обрывает её, когда играет кружок */
+const VHOD=new Audio(MUSIC.vhod);VHOD.loop=true;VHOD.preload='auto';try{VHOD.load()}catch(e){}
 const BUFS={},RAW={},READY={};let mSrc=null,mGain=null,curTrack=null,fb=null;
 function fetchRaw(url){if(!RAW[url])RAW[url]=fetch(url).then(r=>r.arrayBuffer());return RAW[url]}
 function loadBuf(url){if(!BUFS[url])BUFS[url]=fetchRaw(url).then(ab=>new Promise((res,rej)=>ac().decodeAudioData(ab.slice(0),res,rej))).then(b=>{READY[url]=true;return b});return BUFS[url]}
@@ -206,7 +210,7 @@ function playMusic(w){
   if(!soundOn||!unlocked)return;
   if(curTrack===url)return;
   stopMusic();curTrack=url;
-  if(!READY[url]&&w==='vhod'){try{fb=new Audio(url);fb.loop=true;fb.play().catch(()=>{})}catch(e){}return}
+  if(w==='vhod'){fb=VHOD;try{fb.currentTime=0;fb.volume=1;fb.play().catch(()=>{curTrack=null;fb=null})}catch(e){}return}
   loadBuf(url).then(b=>{if(curTrack!==url||mSrc||fb)return;const a=ac();const s=a.createBufferSource();s.buffer=b;s.loop=true;const g=a.createGain();g.gain.value=0;s.connect(g);g.connect(a.destination);s.start();g.gain.setTargetAtTime(duck?0:BGV,a.currentTime,.4);mSrc=s;mGain=g}).catch(()=>{curTrack=null});
   const i=STEPS.findIndex(x=>x.w===w);const nx=STEPS[i+1];if(nx&&MUSIC[nx.w])loadBuf(MUSIC[nx.w]).catch(()=>{});
 }
@@ -410,7 +414,7 @@ function fireworks(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)r
 
 render(false);
 /* заранее: трек входа раскодировать, остальные скачать в фоне */
-try{loadBuf(MUSIC.vhod).catch(()=>{})}catch(e){}
+try{loadBuf(MUSIC.futbol).catch(()=>{})}catch(e){}
 (async()=>{for(const k of ['futbol','ninjago','spider','minecraft','chempion']){try{await fetchRaw(MUSIC[k])}catch(e){}}})();
 ['kr1.mp4'].forEach(u=>{const l=document.createElement('link');l.rel='preload';l.as='video';l.href=u;document.head.appendChild(l)});
 function doReset(){ls.set(KEY,'0');done=0;history.replaceState(null,'',location.pathname);stopMusic();windStop();render(false)}
