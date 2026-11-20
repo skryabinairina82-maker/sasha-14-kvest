@@ -179,7 +179,8 @@ const MUSIC={vhod:'music/vhod.mp3',futbol:'music/futbol.mp3',ninjago:'music/ninj
 const QUIZ=[{p:'2015',a:'2 года',o:['5 лет','2 года','8 лет','11 лет']},{p:'2018',a:'5 лет',o:['8 лет','2 года','11 лет','5 лет']},{p:'2022',a:'9 лет',o:['6 лет','12 лет','9 лет','3 года']}];
 const KEY='kvest-sashi-done',SKEY='kvest-sashi-sound';
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-if(location.hash==='#reset'){ls.set(KEY,'0');history.replaceState(null,'',location.pathname+location.search)}
+const wantReset=()=>location.hash==='#reset'||/[?&]reset\b/.test(location.search);
+if(wantReset()){ls.set(KEY,'0');history.replaceState(null,'',location.pathname)}
 let done=Math.min(parseInt(ls.get(KEY,'0'),10)||0,STEPS.length);
 const app=document.getElementById('app'),map=document.getElementById('map'),scene=document.getElementById('scene');
 const norm=s=>s.trim().toUpperCase().replace(/Ё/g,'Е').replace(/\s+/g,'');
@@ -405,6 +406,9 @@ function loop(){if(running)return;running=true;const step=now=>{ctx.clearRect(0,
 function fireworks(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;until=performance.now()+9000;burst(innerWidth*.3,innerHeight*.3,90);burst(innerWidth*.7,innerHeight*.25,90)}
 
 render(false);
+function doReset(){ls.set(KEY,'0');done=0;history.replaceState(null,'',location.pathname);stopMusic();windStop();render(false)}
+addEventListener('hashchange',()=>{if(wantReset())doReset()});
+addEventListener('pageshow',e=>{if(e.persisted&&wantReset())doReset()});
 </script>
 </body>
 </html>
