@@ -161,7 +161,7 @@ form.pw label{font-weight:800;color:#fff}
     <button id="snd" type="button" aria-label="Звук">🔊</button>
   </header>
   <main class="screen" id="app"></main>
-  <div style="text-align:center;font-size:11px;opacity:.45">версия 4</div>
+  <div style="text-align:center;font-size:11px;opacity:.45">версия 5</div>
 </div>
 
 <script>
@@ -193,7 +193,9 @@ const sndBtn=document.getElementById('snd');
 let BGV=0.5,duck=false;
 try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state!=='running'){try{AC.resume()}catch(e){}}return AC}
-function unlock(){const a=ac();if(unlocked)return;unlocked=true;
+let WL=null;function keepAwake(){try{if(navigator.wakeLock&&!WL)navigator.wakeLock.request('screen').then(l=>{WL=l;l.addEventListener('release',()=>WL=null)}).catch(()=>{})}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&unlocked)keepAwake()});
+function unlock(){const a=ac();keepAwake();if(unlocked)return;unlocked=true;
   try{const b=a.createBuffer(1,1,22050),s=a.createBufferSource();s.buffer=b;s.connect(a.destination);s.start(0)}catch(e){}
   playMusic(curW)}
 /* на iPhone звук разрешён только на «нажатие» (click/touchend), не на касание */
