@@ -162,7 +162,6 @@ form.pw label{font-weight:800;color:#fff}
   </header>
   <main class="screen" id="app"></main>
 </div>
-<audio id="bgm" loop preload="auto"></audio>
 
 <script>
 /* ---------- данные ---------- */
@@ -188,20 +187,27 @@ const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&qu
 
 /* ---------- звук ---------- */
 let soundOn=ls.get(SKEY,'1')==='1',AC=null,unlocked=false,curW=null,windNode=null;
-const bgm=document.getElementById('bgm'),sndBtn=document.getElementById('snd');
-let BGV=0.45,duck=false;
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC}
-function unlock(){if(unlocked)return;unlocked=true;ac();playMusic(curW,true)}
+const sndBtn=document.getElementById('snd');
+let BGV=0.5,duck=false;
+try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state!=='running'){try{AC.resume()}catch(e){}}return AC}
+function unlock(){if(unlocked)return;unlocked=true;ac();playMusic(curW)}
 document.addEventListener('pointerdown',unlock,{once:false,capture:true});
-function setVol(target){const from=bgm.volume;const t0=performance.now();const step=()=>{const k=Math.min((performance.now()-t0)/500,1);try{bgm.volume=from+(target-from)*k}catch(e){}if(k<1)requestAnimationFrame(step)};step()}
-function playMusic(w,force){
-  const src=MUSIC[w];
-  if(!src){bgm.pause();return}
-  if(!bgm.src.endsWith(src)||force){if(!bgm.src.endsWith(src)){bgm.src=src}}
+/* музыка через Web Audio: iPhone не обрывает её, когда играет кружок */
+const BUFS={};let mSrc=null,mGain=null,curTrack=null;
+function loadBuf(url){if(!BUFS[url])BUFS[url]=fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res,rej)=>ac().decodeAudioData(ab,res,rej)));return BUFS[url]}
+function stopMusic(){if(!mSrc)return;const s=mSrc,g=mGain,a=ac();try{g.gain.setTargetAtTime(0,a.currentTime,.15)}catch(e){}setTimeout(()=>{try{s.stop()}catch(e){}},700);mSrc=null;mGain=null;curTrack=null}
+function playMusic(w){
+  const url=MUSIC[w];
+  if(!url){stopMusic();return}
   if(!soundOn||!unlocked)return;
-  bgm.volume=duck?0.06:BGV;bgm.play().catch(()=>{});
+  if(curTrack===url)return;
+  stopMusic();curTrack=url;
+  loadBuf(url).then(b=>{if(curTrack!==url||mSrc)return;const a=ac();const s=a.createBufferSource();s.buffer=b;s.loop=true;const g=a.createGain();g.gain.value=0;s.connect(g);g.connect(a.destination);s.start();g.gain.setTargetAtTime(duck?0:BGV,a.currentTime,.4);mSrc=s;mGain=g}).catch(()=>{curTrack=null});
+  const i=STEPS.findIndex(x=>x.w===w);const nx=STEPS[i+1];if(nx&&MUSIC[nx.w])loadBuf(MUSIC[nx.w]).catch(()=>{});
 }
-function setDuck(v){duck=v;setVol(v?0.06:BGV)}
+setInterval(()=>{const v=document.getElementById('vid');const want=!!(v&&!v.paused&&!v.ended);if(want!==duck)setDuck(want)},250);
+function setDuck(v){duck=v;if(mGain){try{mGain.gain.setTargetAtTime(v?0:BGV,ac().currentTime,.25)}catch(e){}}}
 function tone(f,t0,d,type,g,dest){const a=ac();if(!a||!soundOn)return;const o=a.createOscillator(),v=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);v.gain.setValueAtTime(0,t0);v.gain.linearRampToValueAtTime(g||.25,t0+.01);v.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(v);v.connect(dest||a.destination);o.start(t0);o.stop(t0+d+.05)}
 function noise(d){const a=ac();const b=a.createBuffer(1,Math.max(1,a.sampleRate*d|0),a.sampleRate);const x=b.getChannelData(0);for(let i=0;i<x.length;i++)x[i]=Math.random()*2-1;const s=a.createBufferSource();s.buffer=b;return s}
 const SFX={
@@ -219,7 +225,7 @@ const SFX={
 function windStart(){const a=ac();if(!a||!soundOn||windNode)return;const s=noise(4);s.loop=true;const f=a.createBiquadFilter(),g=a.createGain(),l=a.createOscillator(),lg=a.createGain();f.type='bandpass';f.frequency.value=500;f.Q.value=.8;l.frequency.value=.25;lg.gain.value=300;l.connect(lg);lg.connect(f.frequency);g.gain.value=0;g.gain.linearRampToValueAtTime(.35,a.currentTime+1.5);s.connect(f);f.connect(g);g.connect(a.destination);s.start();l.start();windNode={s,l,g}}
 function windStop(){if(!windNode)return;const a=ac();try{windNode.g.gain.linearRampToValueAtTime(0,a.currentTime+.6);const w=windNode;setTimeout(()=>{try{w.s.stop();w.l.stop()}catch(e){}},700)}catch(e){}windNode=null}
 function drawSnd(){sndBtn.textContent=soundOn?'🔊':'🔇'}
-sndBtn.addEventListener('click',()=>{soundOn=!soundOn;ls.set(SKEY,soundOn?'1':'0');drawSnd();if(soundOn){unlocked=true;ac();playMusic(curW);if(curW==='razdevalka')windStart()}else{bgm.pause();windStop()}});
+sndBtn.addEventListener('click',()=>{soundOn=!soundOn;ls.set(SKEY,soundOn?'1':'0');drawSnd();if(soundOn){unlocked=true;ac();playMusic(curW);if(curW==='razdevalka')windStart()}else{stopMusic();windStop()}});
 drawSnd();
 
 /* ---------- сцены ---------- */
@@ -268,7 +274,7 @@ function worldOf(){return done===0?'vhod':STEPS[done-1].w}
 function render(fromTap){
   drawMap();windStop();
   const w=worldOf();curW=w;setScene(w);
-  if(w!=='razdevalka')playMusic(w);else{bgm.pause();if(unlocked)windStart()}
+  if(w!=='razdevalka')playMusic(w);else{stopMusic();if(unlocked)windStart()}
   app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');
   window.scrollTo({top:0,behavior:'smooth'});
   if(done===0){
@@ -300,8 +306,7 @@ function render(fromTap){
   const start=()=>{unlock();v.currentTime=0;v.play().then(()=>pl.hidden=true).catch(()=>pl.hidden=false)};
   pl.addEventListener('click',start);document.getElementById('again').addEventListener('click',start);
   v.addEventListener('click',()=>{if(v.paused){v.play();pl.hidden=true}else v.pause()});
-  v.addEventListener('play',()=>setDuck(true));v.addEventListener('pause',()=>setDuck(false));
-  v.addEventListener('ended',()=>{setDuck(false);pl.hidden=false;pl.textContent='▶ Ещё раз'});
+  v.addEventListener('ended',()=>{pl.hidden=false;pl.textContent='▶ Ещё раз'});
   if(fromTap)start();
   bindForm();
 }
@@ -362,7 +367,7 @@ function film(){
       <button class="playover sq" id="rplay" type="button">▶ Смотреть ролик</button></div>
     <button class="btn" id="topass" type="button">Получить паспорт</button>`;
   const v=document.getElementById('reel'),pl=document.getElementById('rplay');
-  const go=()=>{unlock();bgm.pause();v.currentTime=0;v.play().then(()=>pl.hidden=true).catch(()=>pl.hidden=false)};
+  const go=()=>{unlock();stopMusic();v.currentTime=0;v.play().then(()=>pl.hidden=true).catch(()=>pl.hidden=false)};
   pl.addEventListener('click',go);go();
   v.addEventListener('click',()=>{if(v.paused){v.play();pl.hidden=true}else v.pause()});
   v.addEventListener('ended',()=>{setTimeout(passport,1200)});
@@ -384,7 +389,7 @@ function passport(){
     <h2>С днём рождения, чемпион!</h2>
     <p class="small">Сделай скриншот паспорта на память.</p>`;
   unlock();SFX.fanfare();setTimeout(SFX.thud,1250);
-  setTimeout(()=>{if(soundOn){bgm.src=MUSIC.chempion;bgm.currentTime=0;bgm.volume=BGV;bgm.play().catch(()=>{})}},3200);
+  stopMusic();setTimeout(()=>{duck=false;playMusic('final')},3200);
   fireworks();
 }
 
